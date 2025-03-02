@@ -1,0 +1,4 @@
+**/.sys.*
+**/.ipynb_checkpoints
+**/__pycache__
+.swanproject
