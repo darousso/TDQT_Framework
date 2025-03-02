@@ -5,7 +5,7 @@ import scipy.linalg
 import time
 from scipy.special import expit
 import os
-from scipy.sparse.linalg import gmres
+from scipy.sparse.linalg import gmres, LinearOperator
 
 hartree_to_eV = 27.2114
 hbar=4.135667696e-15 #eV.s
