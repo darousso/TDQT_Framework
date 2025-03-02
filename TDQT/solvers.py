@@ -4,7 +4,7 @@ from .solver_methods import *
 
 class Solver:
     
-    def __init__(self, device, Gamma, Delta_t, max_iters, list_of_outputs):
+    def __init__(self, device, Gamma, Delta_t, max_iters, list_of_outputs,max_t=None):
         """Initializes functions needed for solver"""
         
         ####################################################
@@ -15,6 +15,7 @@ class Solver:
         self.Delta_t = Delta_t
         self.max_iters = max_iters
         self.list_of_outputs= list_of_outputs
+        self.max_t=max_t
         
         H=device.H
         S=device.S
@@ -86,9 +87,9 @@ class Solver:
         Delta_t_scaled = Delta_t / t_scale
         
         self.Gamma_scaled=Gamma_scaled
-        self.Delta_t_scaled=Delta_t_scaled      
+        self.Delta_t_scaled=Delta_t_scaled 
+        self.t_scale=t_scale
         
-        self.t_vec_in_fs=np.array(range(0,self.max_iters))*self.Delta_t/fs
         
         
         
@@ -178,71 +179,164 @@ class Solver:
         
     ########################################################################################################
 
-    def Propagate_In_Site(self, solver_type="Forwards Difference"):
+#     def Propagate_In_Site(self, solver_type="Forwards Difference"):
         
-#         self.Initial_P0
-#         self.output_funcs_site_dict
-#         self.dPdt_Site_Scaled
-#         self.Delta_t_scaled
-#         self.max_iters
-#         self.list_of_outputs
+# #         self.Initial_P0
+# #         self.output_funcs_site_dict
+# #         self.dPdt_Site_Scaled
+# #         self.Delta_t_scaled
+# #         self.max_iters
+# #         self.list_of_outputs
         
-        ####################################################
-        ## Actually loop
+#         ####################################################
+#         ## Actually loop
         
-        start = time.time()
+#         start = time.time()
         
-        P = self.Initial_P0
-        previous_step_info = {}
-        outputs_dict = {output_type: [self.output_funcs_site_dict[output_type](P)] for output_type in self.list_of_outputs}
+#         P = self.Initial_P0
+#         previous_step_info = {}
+#         outputs_dict = {output_type: [self.output_funcs_site_dict[output_type](P)] for output_type in self.list_of_outputs}
         
-        for i in range(1, self.max_iters):
-            P, previous_step_info = Solver_Func_Dict[solver_type](P, self.dPdt_Site_Scaled, previous_step_info, i, self.Delta_t_scaled)
+#         for i in range(1, self.max_iters):
+#             P, previous_step_info = Solver_Func_Dict[solver_type](P, self.dPdt_Site_Scaled, previous_step_info, i, self.Delta_t_scaled)
             
-            for output_type in self.list_of_outputs:
-                outputs_dict[output_type].append(self.output_funcs_site_dict[output_type](P))
+#             for output_type in self.list_of_outputs:
+#                 outputs_dict[output_type].append(self.output_funcs_site_dict[output_type](P))
                 
-            if i % 10 == 0:
-                print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+#             if i % 10 == 0:
+#                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
                 
-        self.outputs_dict=outputs_dict
-        return outputs_dict
+#         self.outputs_dict=outputs_dict
+#         self.t_vec_in_fs=np.array(range(0,self.max_iters))*self.Delta_t/fs
+#         return outputs_dict
+    
+    
+    
+#     ########################################################################################################
+
+#     def Propagate_In_State(self, solver_type="Forwards Difference"):
+        
+# #         self.Initial_P0ss
+# #         self.output_funcs_state_dict
+# #         self.dPdt_State_Scaled
+# #         self.Delta_t_scaled
+# #         self.max_iters
+# #         self.list_of_outputs
+        
+#         ####################################################
+#         ## Actually loop
+        
+#         start = time.time()
+        
+#         Pss = self.Initial_P0ss
+#         previous_step_info = {}
+#         outputs_dict = {output_type: [self.output_funcs_state_dict[output_type](Pss)] for output_type in self.list_of_outputs}
+        
+#         for i in range(1, self.max_iters):
+#             Pss, previous_step_info = Solver_Func_Dict[solver_type](Pss, self.dPdt_State_Scaled, previous_step_info, i, self.Delta_t_scaled)
+            
+#             for output_type in self.list_of_outputs:
+#                 outputs_dict[output_type].append(self.output_funcs_state_dict[output_type](Pss))
+                
+#             if i % 10 == 0:
+#                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+                
+#         self.outputs_dict=outputs_dict
+#         self.t_vec_in_fs=np.array(range(0,self.max_iters))*self.Delta_t/fs
+#         return outputs_dict
+    
+    
     
     
     
     ########################################################################################################
-
-    def Propagate_In_State(self, solver_type="Forwards Difference"):
-        
-#         self.Initial_P0ss
-#         self.output_funcs_state_dict
-#         self.dPdt_State_Scaled
-#         self.Delta_t_scaled
-#         self.max_iters
-#         self.list_of_outputs
-        
-        ####################################################
-        ## Actually loop
-        
+    
+    def Propagate_In_Site(self, solver_type="Implicit Euler"):
+        """
+        Propagates the system using the selected solver with adaptive time-stepping for the Site loop.
+        Updates outputs_dict only if the time step is successful.
+        """
         start = time.time()
-        
-        Pss = self.Initial_P0ss
-        previous_step_info = {}
-        outputs_dict = {output_type: [self.output_funcs_state_dict[output_type](Pss)] for output_type in self.list_of_outputs}
-        
+
+        P = self.Initial_P0
+        previous_step_info = {"converged":True}
+        Delta_t_scaled = self.Delta_t_scaled
+        NBas = P.size  # Total number of basis functions (dimension of the matrices)
+        outputs_dict = {output_type: [self.output_funcs_site_dict[output_type](P)] for output_type in self.list_of_outputs}
+        t_vec_scaled = [0]
+
         for i in range(1, self.max_iters):
-            Pss, previous_step_info = Solver_Func_Dict[solver_type](Pss, self.dPdt_State_Scaled, previous_step_info, i, self.Delta_t_scaled)
-            
-            for output_type in self.list_of_outputs:
-                outputs_dict[output_type].append(self.output_funcs_state_dict[output_type](Pss))
-                
+            # Call solver with updated previous_step_info which includes convergence status
+            P, previous_step_info, Delta_t_scaled = Solver_Func_Dict[solver_type](P, self.dPdt_Site_Scaled, previous_step_info, i, Delta_t_scaled, NBas)
+
+            # Convergence check from previous_step_info
+            if previous_step_info.get("converged", False):
+                # Convergence succeeded, update t_vec_scaled and append to outputs_dict
+                t_vec_scaled.append(t_vec_scaled[-1] + Delta_t_scaled)
+                for output_type in self.list_of_outputs:
+                    outputs_dict[output_type].append(self.output_funcs_site_dict[output_type](P))
+            else:
+                print(f"Step {i}: Convergence failed, restoring P from the previous time step.")
+
+            # Output progress every 10 steps
             if i % 10 == 0:
                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
                 
-        self.outputs_dict=outputs_dict
+            if not self.max_t is None:
+                if t_vec_scaled[-1]>(self.max_t/self.t_scale):
+                    break
+
+        self.outputs_dict = outputs_dict
+        t_vec_scaled = np.array(t_vec_scaled)
+        self.t_vec_scaled = t_vec_scaled
+        self.t_vec_in_fs = t_vec_scaled * self.t_scale / fs
         return outputs_dict
-    
-    
+
+
+
+    def Propagate_In_State(self, solver_type="Implicit Euler"):
+        """
+        Propagates the system using the selected solver with adaptive time-stepping for the State loop.
+        Updates outputs_dict only if the time step is successful.
+        """
+        start = time.time()
+
+        Pss = self.Initial_P0ss
+        previous_step_info = {"converged":True}
+        Delta_t_scaled = self.Delta_t_scaled
+        NBas = Pss.size  # Total number of basis functions (dimension of the matrices)
+        outputs_dict = {output_type: [self.output_funcs_state_dict[output_type](Pss)] for output_type in self.list_of_outputs}
+        t_vec_scaled = [0]
+
+        for i in range(1, self.max_iters):
+            # Call solver with updated previous_step_info which includes convergence status
+            Pss, previous_step_info, Delta_t_scaled = Solver_Func_Dict[solver_type](Pss, self.dPdt_State_Scaled, previous_step_info, i, Delta_t_scaled, NBas)
+
+            # Convergence check from previous_step_info
+            if previous_step_info.get("converged", False):
+                # Convergence succeeded, update t_vec_scaled and append to outputs_dict
+                t_vec_scaled.append(t_vec_scaled[-1] + Delta_t_scaled)
+                for output_type in self.list_of_outputs:
+                    outputs_dict[output_type].append(self.output_funcs_state_dict[output_type](Pss))
+            else:
+                print(f"Step {i}: Convergence failed, restoring P from the previous time step.")
+
+            # Output progress every 10 steps
+            if i % 10 == 0:
+                print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+                
+            if not self.max_t is None:
+                if t_vec_scaled[-1]>(self.max_t/self.t_scale):
+                    break
+
+        self.outputs_dict = outputs_dict
+        t_vec_scaled = np.array(t_vec_scaled)
+        self.t_vec_scaled = t_vec_scaled
+        self.t_vec_in_fs = t_vec_scaled * self.t_scale / fs
+        return outputs_dict
+
+
+
     
     
     ########################################################################################################

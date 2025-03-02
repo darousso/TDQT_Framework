@@ -3,7 +3,7 @@ from .common import *
 ########################################################################################################
 ## Solver Methods
 
-def Central_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
+def Central_Difference_Step(P, dPdt, previous_step_info, i, Delta_t,Nbas):
     P_before_update = P
     if i < 2:
         P = P + Delta_t * dPdt(P)
@@ -13,7 +13,7 @@ def Central_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
     
     previous_step_info["P_2_steps_prior"] = P_before_update  # Corrected variable name
     
-    return P, previous_step_info
+    return P, previous_step_info,Delta_t
 
 
 # def Backwards_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
@@ -354,10 +354,10 @@ def Central_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
 #     P_new_vec, exit_code = gmres(A_linop, RHS, atol
 
 
-import numpy as np
-from scipy.sparse.linalg import gmres, LinearOperator
+# import numpy as np
+# from scipy.sparse.linalg import gmres, LinearOperator
 
-def Crank_Nicholson_Step(P, dPdt, previous_step_info, i, Delta_t):
+def Crank_Nicholson_Step(P, dPdt, previous_step_info, i, Delta_t,Nbas):
     """
     Implements the Crank-Nicholson method:
     (I - Δt/2 * D) P_new = (I + Δt/2 * D) P_old
@@ -395,10 +395,10 @@ def Crank_Nicholson_Step(P, dPdt, previous_step_info, i, Delta_t):
         print(f"Warning: GMRES did not converge at step {i}, exit code {exit_code}")
 
     # Return P_new as np.matrix to maintain consistency with the input type
-    return np.matrix(P_new_vec.reshape(P_shape)), None
+    return np.matrix(P_new_vec.reshape(P_shape)), None,Delta_t
 
 
-def Backwards_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
+def Backwards_Difference_Step(P, dPdt, previous_step_info, i, Delta_t,N_bas):
     """
     Implements the Backward Difference method:
     P_new = P_old + Δt * D P_new
@@ -432,7 +432,165 @@ def Backwards_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
         print(f"Warning: GMRES did not converge at step {i}, exit code {exit_code}")
 
     # Return P_new as np.matrix to maintain consistency with the input type
-    return np.matrix(P_new_vec.reshape(P_shape)), None
+    return np.matrix(P_new_vec.reshape(P_shape)), None,Delta_t
+
+
+
+
+# def Implicit_Euler_Variable_Timesteps(P, dPdt, previous_step_info, i, Delta_t):
+#     """
+#     Implements the Implicit Euler method:
+#     P_new = P_old + Δt * dPdt(P_new)
+#     Rearranged as: P_new - Δt * dPdt(P_new) = P_old
+#     Uses a fixed-point iteration (Picard iteration) to solve the implicit equation.
+    
+#     Adaptive time-stepping is based on the convergence of the iteration.
+#     """
+#     P_shape = P.shape
+#     P_size = P.size  # Total number of elements in P
+
+#     # Convert P to 1D array (flatten to 1D) if it is a np.matrix
+#     if isinstance(P, np.matrix):
+#         P_vec = P.A1  # .A1 gives the flattened 1D array from np.matrix
+#     else:
+#         P_vec = P.flatten()  # Use .flatten() for np.ndarray
+
+#     # Initial guess for P_new
+#     P_new_vec = P_vec.copy()
+    
+#     # Fixed-point iteration (Picard iteration) for solving the implicit equation
+#     max_iter = 100
+#     tol = 1e-8
+#     iteration = 0
+#     converged = False
+
+#     while iteration < max_iter and not converged:
+#         # Compute dP/dt at the current guess
+#         dPdt_new = dPdt(P_new_vec.reshape(P_shape))
+        
+#         # Update P_new_vec using the implicit Euler equation
+#         P_new_vec_next = P_vec + Delta_t * dPdt_new.flatten()
+        
+#         # Check convergence (we stop if the change is smaller than the tolerance)
+#         if np.linalg.norm(P_new_vec_next - P_new_vec) < tol:
+#             converged = True
+#         else:
+#             P_new_vec = P_new_vec_next
+        
+#         iteration += 1
+
+#     if not converged:
+#         print(f"Warning: Implicit Euler did not converge in {max_iter} iterations at step {i}")
+    
+#     # Adaptive time-stepping: If convergence was slow, decrease Delta_t
+#     if iteration > 10:  # If many iterations were needed, reduce time step
+#         Delta_t *= 0.5
+#     else:  # If convergence was quick, slightly increase time step
+#         Delta_t *= 1.1
+    
+#     # Return the new P as a np.matrix to maintain consistency with input type
+#     return np.matrix(P_new_vec_next.reshape(P_shape)), Delta_t
+
+# def Implicit_Euler_Variable_Timesteps(P, dPdt, previous_step_info, i, Delta_t, NBas):
+#     """
+#     Implements the Implicit Euler method with the fixed-point iteration and adaptive time steps.
+    
+#     The method follows the equation:
+#         P(t + Δt) = P(t) + Δt * f(t + Δt, P(t + Δt))
+    
+#     Convergence is determined by:
+#         ||P_{i+1}(t+Δt) - P_i(t+Δt)|| / NBas < 10^-4
+    
+#     Time step is adjusted according to the convergence behavior:
+#         - If converges in the first iteration, double the time step.
+#         - If fails to converge after 5 iterations, halve the time step.
+#     """
+#     P_shape = P.shape
+#     P_size = P.size  # Total number of elements in P
+
+#     # Convert P to 1D array (flatten to 1D) if it is a np.matrix
+#     if isinstance(P, np.matrix):
+#         P_vec = P.A1  # .A1 gives the flattened 1D array from np.matrix
+#     else:
+#         P_vec = P.flatten()  # Use .flatten() for np.ndarray
+
+#     # Initial guess for P_new
+#     P_new_vec = P_vec.copy()
+    
+#     # Fixed-point iteration (Picard iteration) for solving the implicit equation
+#     max_iter = 5  # Max 5 iterations for convergence
+#     tol = 1e-4  # Convergence criterion
+#     iteration = 0
+#     converged = False
+
+#     previous_P_vec = P_vec.copy()  # Store the initial guess for convergence check
+
+#     while iteration < max_iter and not converged:
+#         # Compute f(t+Δt, P(t+Δt)) using the previous guess for P_new
+#         dPdt_new = dPdt(P_new_vec.reshape(P_shape))
+        
+#         # Update P_new_vec using the implicit Euler equation
+#         P_new_vec_next = P_vec + Delta_t * dPdt_new.flatten()
+        
+#         # Check convergence (we stop if the change is smaller than the tolerance)
+#         change = np.linalg.norm(P_new_vec_next - P_new_vec) / NBas
+#         if change < tol:
+#             converged = True
+#         else:
+#             P_new_vec = P_new_vec_next
+        
+#         iteration += 1
+
+#     # Handle adaptive time-stepping based on convergence
+#     if not converged:
+#         print(f"Warning: Implicit Euler did not converge in {max_iter} iterations at step {i}")
+#         # Halve time step and roll back the density matrix
+#         Delta_t *= 0.5
+#         P_new_vec = previous_P_vec  # Roll back to the previous state
+#     elif iteration == 1:
+#         # If converged in the first iteration, double the time step
+#         Delta_t *= 2
+
+#     # Return the new P as a np.matrix to maintain consistency with input type
+#     return np.matrix(P_new_vec.reshape(P_shape)), previous_step_info,Delta_t
+
+
+def Implicit_Euler_Variable_Timesteps(P, dPdt, previous_step_info, step, Delta_t, NBas):
+    """
+    Perform one step of the Implicit Euler method with a convergence check, keeping P(t) fixed.
+    """
+    P_fixed = P.copy()  # This is the fixed P(t) from the previous time step
+    P_guess = P.copy()  # Start with an initial guess for P(t + Delta_t)
+    converged = False
+    max_iterations = 5  # Max iterations for convergence check (as per the provided method)
+    tolerance = 1e-4  # Convergence tolerance (as per the provided method)
+
+    # Start iterative process for implicit update
+    for i in range(max_iterations):
+        # Update P_guess using implicit Euler: P_guess = P_fixed + Delta_t * dPdt(P_guess)
+        P_new = P_fixed + Delta_t * dPdt(P_guess)
+
+        # Check convergence using Euclidean norm
+        if np.linalg.norm(P_new - P_guess) / NBas < tolerance:
+            converged = True
+            # If convergence is achieved in the first iteration, double Delta_t
+            if i == 0:
+                Delta_t *= 2
+            break
+        else:
+            P_guess = P_new  # Update P_guess for the next iteration
+
+    # If converged, update P, otherwise restore P to the original input
+    if converged:
+        previous_step_info["converged"] = True
+        return P_new, previous_step_info, Delta_t
+    else:
+        # Restore the original P (no update to time step or t_vec_scaled)
+        print(f"Convergence failed at step {step}, restoring P.")
+        # If convergence fails after max_iterations, halve Delta_t and roll back to the previous time step
+        Delta_t /= 2
+        previous_step_info["converged"] = False
+        return P_fixed, previous_step_info, Delta_t  # Return the original P to keep time unchanged
 
 
 
@@ -440,10 +598,11 @@ def Backwards_Difference_Step(P, dPdt, previous_step_info, i, Delta_t):
 
 
 
-
+#########################################################################
 Solver_Func_Dict = {
-    "Forwards Difference":   lambda P, dPdt, previous_step_info, i, Delta_t: (P + Delta_t * dPdt(P), previous_step_info),
+    "Forwards Difference":   lambda P, dPdt, previous_step_info, i, Delta_t, NBas: (P + Delta_t * dPdt(P), previous_step_info,Delta_t),
     "Central Difference":    Central_Difference_Step,
     "Backwards Difference":  Backwards_Difference_Step,
     "Crank-Nicholson":       Crank_Nicholson_Step,
+    "Implicit Euler":        Implicit_Euler_Variable_Timesteps,
 }
