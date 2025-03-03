@@ -122,6 +122,9 @@ class Solver:
         def Get_J_All_Elements_Site(P):
             return np.array([np.imag(P[n, n+1]) * 2 * e / hbar * (H[n, n+1]) for n in range(size_full - 1)])
         
+        def Get_J_Central_Site(P):
+            return np.array([np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)]) for n in range(size_full - 1)])
+        
         def Get_J_Leads_Only_Site(P):
             Ps = np.linalg.solve(Ub, P @ np.linalg.solve(Ubd, np.eye(U.shape[0])))
             Ps_EML = Ps[size_lead_L:size_lead_L + size_EM, :size_lead_L]
@@ -129,10 +132,11 @@ class Solver:
             return np.imag((Ps_EML @ Hs_LEM - Ps_EMR @ Hs_REM).trace())[0,0] / hbar * e
         
         output_funcs_site_dict = {
-            "Full P Matrix": lambda P: P,
-            "P@S diagonal": lambda P: (P @ S).diagonal(),
+            "Full P Matrix":  lambda P: P,
+            "P@S diagonal":   lambda P: (P @ S).diagonal(),
             "J All Elements": Get_J_All_Elements_Site,
-            "J Leads Only": Get_J_Leads_Only_Site,
+            "J Leads Only":   Get_J_Leads_Only_Site,
+            "J Central":      Get_J_Central_Site,
         }    
         self.output_funcs_site_dict=output_funcs_site_dict
         
@@ -163,12 +167,17 @@ class Solver:
             return np.imag((Ps_EML @ Hs_LEM - Ps_EMR @ Hs_REM).trace())[0,0] / hbar * e
         
         UdUbdS=UdUbd@ S
+        
+        def Get_J_Central_State(Pss):
+            P=(UbU@Pss@UdUbd)
+            return np.array([np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)]) for n in range(size_full - 1)])
 
         output_funcs_state_dict = {
-            "Full Pss Matrix": lambda Pss: Pss,
-            "Pss diagonal": lambda Pss: Pss.diagonal(),
-            "P@S diagonal From State": lambda Pss: (UbU@Pss@UdUbdS).diagonal(),
-            "J Leads Only From State": Get_J_Leads_Only_State,
+            "Full Pss Matrix"         : lambda Pss: Pss,
+            "Pss diagonal"            : lambda Pss: Pss.diagonal(),
+            "P@S diagonal From State" : lambda Pss: (UbU@Pss@UdUbdS).diagonal(),
+            "J Leads Only From State" : Get_J_Leads_Only_State,
+            "J Central From State"    : Get_J_Central_State,
         }    
         self.output_funcs_state_dict=output_funcs_state_dict
         
@@ -251,7 +260,7 @@ class Solver:
     
     ########################################################################################################
     
-    def Propagate_In_Site(self, solver_type="Implicit Euler"):
+    def Propagate_In_Site(self, solver_type="RK45"):
         """
         Propagates the system using the selected solver with adaptive time-stepping for the Site loop.
         Updates outputs_dict only if the time step is successful.
@@ -270,7 +279,7 @@ class Solver:
             P, previous_step_info, Delta_t_scaled = Solver_Func_Dict[solver_type](P, self.dPdt_Site_Scaled, previous_step_info, i, Delta_t_scaled, NBas)
 
             # Convergence check from previous_step_info
-            if previous_step_info.get("converged", False):
+            if previous_step_info["converged"]:
                 # Convergence succeeded, update t_vec_scaled and append to outputs_dict
                 t_vec_scaled.append(t_vec_scaled[-1] + Delta_t_scaled)
                 for output_type in self.list_of_outputs:
@@ -281,6 +290,7 @@ class Solver:
             # Output progress every 10 steps
             if i % 10 == 0:
                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+                print("Delta_t, current_t [fs]=",Delta_t_scaled* self.t_scale / fs,t_vec_scaled[-1]* self.t_scale / fs)
                 
             if not self.max_t is None:
                 if t_vec_scaled[-1]>(self.max_t/self.t_scale):
@@ -294,7 +304,7 @@ class Solver:
 
 
 
-    def Propagate_In_State(self, solver_type="Implicit Euler"):
+    def Propagate_In_State(self, solver_type="RK45"):
         """
         Propagates the system using the selected solver with adaptive time-stepping for the State loop.
         Updates outputs_dict only if the time step is successful.
@@ -313,7 +323,7 @@ class Solver:
             Pss, previous_step_info, Delta_t_scaled = Solver_Func_Dict[solver_type](Pss, self.dPdt_State_Scaled, previous_step_info, i, Delta_t_scaled, NBas)
 
             # Convergence check from previous_step_info
-            if previous_step_info.get("converged", False):
+            if previous_step_info["converged"]:
                 # Convergence succeeded, update t_vec_scaled and append to outputs_dict
                 t_vec_scaled.append(t_vec_scaled[-1] + Delta_t_scaled)
                 for output_type in self.list_of_outputs:
@@ -324,6 +334,7 @@ class Solver:
             # Output progress every 10 steps
             if i % 10 == 0:
                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+                print("Delta_t, current_t [fs]=",Delta_t_scaled* self.t_scale / fs,t_vec_scaled[-1]* self.t_scale / fs)
                 
             if not self.max_t is None:
                 if t_vec_scaled[-1]>(self.max_t/self.t_scale):
@@ -335,6 +346,120 @@ class Solver:
         self.t_vec_in_fs = t_vec_scaled * self.t_scale / fs
         return outputs_dict
 
+
+
+    
+    
+    
+    
+#     from scipy.integrate import solve_ivp
+#     from scipy.integrate import solve_ivp
+#     import numpy as np
+
+#     def Propagate_In_Site_SciPy(self):
+#         """
+#         Propagates the system using SciPy's adaptive ODE solver (solve_ivp) for the Site loop.
+#         Handles complex matrices by solving real and imaginary parts separately.
+#         Stores only extracted outputs to save memory.
+#         """
+#         start = time.time()
+
+#         P = np.array(self.Initial_P0)  # Convert np.matrix to np.array
+#         Delta_t_scaled = self.Delta_t_scaled
+#         P_shape = P.shape
+#         P_real = np.array(P.real).flatten()
+#         P_imag = np.array(P.imag).flatten()
+
+#         T_final = self.max_t / self.t_scale if self.max_t is not None else self.max_iters * Delta_t_scaled
+
+#         def dPdt_real_imag(t, P_flat_real_imag):
+#             """ Computes dP/dt split into real and imaginary parts. """
+#             P_real, P_imag = np.split(P_flat_real_imag, 2)
+#             P_mat = (P_real + 1j * P_imag).reshape(P_shape)
+#             dPdt = np.array(self.dPdt_Site_Scaled(P_mat))  # Convert dPdt to np.array
+#             return np.concatenate([dPdt.real.flatten(), dPdt.imag.flatten()])
+
+#         # Output storage
+#         outputs_dict = {output_type: [] for output_type in self.list_of_outputs}
+#         t_vec_scaled = []
+
+#         def store_outputs(t, P_flat_real_imag):
+#             """ Callback to store extracted outputs. """
+#             P_real, P_imag = np.split(P_flat_real_imag, 2)
+#             P_mat = (P_real + 1j * P_imag).reshape(P_shape)
+#             t_vec_scaled.append(t)
+#             for output_type in self.list_of_outputs:
+#                 outputs_dict[output_type].append(self.output_funcs_site_dict[output_type](P_mat))
+
+#         # Solve real-valued ODE
+#         P0_real_imag = np.concatenate([P_real, P_imag])  # Ensure 1D
+#         sol = solve_ivp(dPdt_real_imag, (0, T_final), P0_real_imag, method="LSODA",  # Change method to LSODA for stability
+#                         atol=1e-8, rtol=1e-6, vectorized=False, dense_output=False)
+
+#         for i in range(len(sol.t)):  
+#             store_outputs(sol.t[i], sol.y[:, i])
+#             if i % 10 == 0:
+#                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+#                 print("Delta_t, current_t [fs]=",Delta_t_scaled* self.t_scale / fs,t_vec_scaled[-1]* self.t_scale / fs)
+
+#         self.outputs_dict = outputs_dict
+#         self.t_vec_scaled = np.array(t_vec_scaled)
+#         self.t_vec_in_fs = self.t_vec_scaled * self.t_scale / fs
+
+#         return outputs_dict
+
+
+#     def Propagate_In_State_SciPy(self):
+#         """
+#         Propagates the system using SciPy's adaptive ODE solver (solve_ivp) for the State loop.
+#         Handles complex matrices by solving real and imaginary parts separately.
+#         Stores only extracted outputs to save memory.
+#         """
+#         start = time.time()
+
+#         Pss = np.array(self.Initial_P0ss)  # Convert np.matrix to np.array
+#         Delta_t_scaled = self.Delta_t_scaled
+#         Pss_shape = Pss.shape
+#         Pss_real = np.array(Pss.real).flatten()
+#         Pss_imag = np.array(Pss.imag).flatten()
+
+#         T_final = self.max_t / self.t_scale if self.max_t is not None else self.max_iters * Delta_t_scaled
+
+#         def dPdt_real_imag(t, Pss_flat_real_imag):
+#             """ Computes dP/dt split into real and imaginary parts. """
+#             Pss_real, Pss_imag = np.split(Pss_flat_real_imag, 2)
+#             Pss_mat = (Pss_real + 1j * Pss_imag).reshape(Pss_shape)
+#             dPdt = np.array(self.dPdt_State_Scaled(Pss_mat))  # Convert dPdt to np.array
+#             return np.concatenate([dPdt.real.flatten(), dPdt.imag.flatten()])
+
+#         # Output storage
+#         outputs_dict = {output_type: [] for output_type in self.list_of_outputs}
+#         t_vec_scaled = []
+
+#         def store_outputs(t, Pss_flat_real_imag):
+#             """ Callback to store extracted outputs. """
+#             Pss_real, Pss_imag = np.split(Pss_flat_real_imag, 2)
+#             Pss_mat = (Pss_real + 1j * Pss_imag).reshape(Pss_shape)
+#             t_vec_scaled.append(t)
+#             for output_type in self.list_of_outputs:
+#                 outputs_dict[output_type].append(self.output_funcs_state_dict[output_type](Pss_mat))
+
+#         # Solve real-valued ODE
+#         Pss0_real_imag = np.concatenate([Pss_real, Pss_imag])  # Ensure 1D
+#         sol = solve_ivp(dPdt_real_imag, (0, T_final), Pss0_real_imag, method="LSODA",  # Change method to LSODA for stability
+#                         atol=1e-8, rtol=1e-6, vectorized=False, dense_output=False)
+
+#         for i in range(len(sol.t)):  
+#             store_outputs(sol.t[i], sol.y[:, i])
+#             if i % 10 == 0:
+#                 print(f"Step {i} out of {self.max_iters} - Time: {time.time() - start:.2f}s")
+#                 print("Delta_t, current_t [fs]=",Delta_t_scaled* self.t_scale / fs,t_vec_scaled[-1]* self.t_scale / fs)
+
+#         self.outputs_dict = outputs_dict
+#         self.t_vec_scaled = np.array(t_vec_scaled)
+#         self.t_vec_in_fs = self.t_vec_scaled * self.t_scale / fs
+
+#         return outputs_dict
 
 
     

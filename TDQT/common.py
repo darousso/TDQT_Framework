@@ -8,7 +8,8 @@ import os
 from scipy.sparse.linalg import gmres, LinearOperator
 
 hartree_to_eV = 27.2114
-hbar=4.135667696e-15 #eV.s
+# hbar=4.135667696e-15 #eV.s
+hbar=6.582119569e-16 #eV.s
 kB = 8.617e-5  # Boltzmann constant in eV/K
 e=1.60218e-19
 invfs=1e15
