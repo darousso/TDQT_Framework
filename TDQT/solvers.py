@@ -82,7 +82,10 @@ class Solver:
         
         t_scale = hbar / abs(H).max()
         H_scaled = H / abs(H).max()
-        Hss_scaled = Hss / abs(H).max()
+        
+#         Hss_scaled = Hss / abs(H).max()
+        Hss_scaled = UdUbd@H_scaled@UbU
+        
         Gamma_scaled = Gamma * t_scale
         Delta_t_scaled = Delta_t / t_scale
         
@@ -110,7 +113,7 @@ class Solver:
             else:
                 # Solve linear system instead of computing inverses explicitly
                 Pss = np.linalg.solve(UbU, P @ np.linalg.solve(UbdUd, np.eye(U.shape[0])))
-                DAMP = -Gamma_scaled * UbU @ (Pss * (CORNERS + CROSS / 2) - Target_P0ss * CONTACTS) @ UdUbd
+                DAMP = -Gamma_scaled * UbU @ (np.multiply(Pss , (CORNERS + CROSS / 2)) - np.multiply( Target_P0ss , CONTACTS)) @ UdUbd
 
             return COMMUTE + DAMP
         
@@ -123,7 +126,7 @@ class Solver:
             return np.array([np.imag(P[n, n+1]) * 2 * e / hbar * (H[n, n+1]) for n in range(size_full - 1)])
         
         def Get_J_Central_Site(P):
-            return np.array([np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)]) for n in range(size_full - 1)])
+            return np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)])
         
         def Get_J_Leads_Only_Site(P):
             Ps = np.linalg.solve(Ub, P @ np.linalg.solve(Ubd, np.eye(U.shape[0])))
@@ -151,7 +154,7 @@ class Solver:
             if Gamma == 0:
                 DAMP = 0
             else:
-                DAMP = -Gamma_scaled * (Pss * (CORNERS + CROSS / 2) - Target_P0ss * CONTACTS) 
+                DAMP = -Gamma_scaled * (np.multiply(Pss , (CORNERS + CROSS / 2)) - np.multiply(Target_P0ss , CONTACTS) )
 
             return COMMUTE + DAMP
 
@@ -170,7 +173,7 @@ class Solver:
         
         def Get_J_Central_State(Pss):
             P=(UbU@Pss@UdUbd)
-            return np.array([np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)]) for n in range(size_full - 1)])
+            return np.imag(P[int(size_full/2)-1, int(size_full/2)]) * 2 * e / hbar * (H[int(size_full/2)-1, int(size_full/2)])
 
         output_funcs_state_dict = {
             "Full Pss Matrix"         : lambda Pss: Pss,

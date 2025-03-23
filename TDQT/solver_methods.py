@@ -617,9 +617,9 @@ def RK4_Step(P, dPdt, previous_step_info, i, Delta_t,N_bas):
     P_new = P + (Delta_t / 6) * (k1 + 2*k2 + 2*k3 + k4)
 
     # Store intermediate steps if needed (e.g., for adaptive stepping later)
-    previous_step_info[i] = {
-        "k1": k1, "k2": k2, "k3": k3, "k4": k4, "P_new": P_new
-    }
+#     previous_step_info[i] = {
+#         "k1": k1, "k2": k2, "k3": k3, "k4": k4, "P_new": P_new
+#     }
 
     return P_new, previous_step_info,Delta_t
 

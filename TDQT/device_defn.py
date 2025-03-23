@@ -8,6 +8,7 @@ class Device:
                 V_bias,
                 T_L=0, T_R=0, T_EM=0,
                 clean_matrices=False,
+                 oded_bias_convention=False,
             ):
         
         """Initializes the device and the relevant matrices"""
@@ -105,9 +106,15 @@ class Device:
         E_F_EM=np.mean([sorted(E_EM)[int(len(E_EM)/2)-1],sorted(E_EM)[int(len(E_EM)/2)]])
         E_F=np.real(np.mean([sorted(np.diag(Hss))[int(len(np.diag(Hss))/2)-1],sorted(np.diag(Hss))[int(len(np.diag(Hss))/2)]]))
 
-        mu_L=E_F_R+V_bias/2 #eV
-        mu_R=E_F_L-V_bias/2 #eV
-        mu_EM=E_F_EM
+        if oded_bias_convention:
+            mu_L=E_F_R+V_bias #eV
+            mu_R=E_F_L-0 #eV
+            mu_EM=E_F_EM+V_bias
+        else:
+            mu_L=E_F_R+V_bias/2 #eV
+            mu_R=E_F_L-V_bias/2 #eV
+            mu_EM=E_F_EM
+        
         Target_P0ss=np.zeros((size_full,size_full))*0j
         Target_P0ss[:size_lead_L,:size_lead_L]=np.diag(expit(- (E_L - mu_L) / (kB * T_L)))
         Target_P0ss[-size_lead_R:,-size_lead_R:]=np.diag(expit(- (E_R - mu_R) / (kB * T_R)))
